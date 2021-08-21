@@ -475,7 +475,7 @@ namespace uPDFParser
 	if (token != "obj")
 	    EXCEPTION(INVALID_OBJECT, "Invalid object at offset " << curOffset);
 
-	std::cout << "New obj " << objectId << " " << generationNumber << std::endl;
+	// std::cout << "New obj " << objectId << " " << generationNumber << std::endl;
 	
 	object = new Object(objectId, generationNumber, offset);
 	_objects.push_back(object);
