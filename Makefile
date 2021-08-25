@@ -9,10 +9,10 @@ BUILD_STATIC ?= 0
 BUILD_SHARED ?= 1
 
 TARGETS =
-ifneq (BUILD_STATIC, 0)
+ifneq ($(BUILD_STATIC), 0)
   TARGETS += libupdfparser.a
 endif
-ifneq (BUILD_SHARED, 0)
+ifneq ($(BUILD_SHARED), 0)
   TARGETS += libupdfparser.so
 endif
 
