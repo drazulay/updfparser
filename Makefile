@@ -46,8 +46,8 @@ libupdfparser.a: $(OBJECTS)
 libupdfparser.so: $(OBJECTS)
 	$(CXX) obj/*.o $(LDFLAGS) -o $@ -shared
 
-test: test.c libupdfparser.a
+test: tests/test.cpp libupdfparser.a
 	g++ -ggdb -O0 $^ -o $@ -Iinclude libupdfparser.a
 
 clean:
-	rm -rf libupdfparser.so libupdfparser.a obj
+	rm -rf libupdfparser.so libupdfparser.a obj test
