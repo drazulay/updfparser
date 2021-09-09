@@ -80,6 +80,7 @@ namespace uPDFParser
 	
     private:
 	void parseObject(std::string& token);
+	void parseStartXref();
 	void parseXref();
 	void parseTrailer();
 

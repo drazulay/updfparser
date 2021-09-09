@@ -64,7 +64,17 @@ namespace uPDFParser
 	    }
 
 	    if (c == '\n' || c == '\r')
-		break;
+	    {
+		// Empty line
+		if (!res)
+		{
+		    size++ ;
+		    res--;
+		    continue;
+		}
+		else
+		    break;
+	    }
 
 	    buffer[res] = c;
 	}
@@ -87,8 +97,14 @@ namespace uPDFParser
 	    if (read(fd, &c, 1) != 1)
 		break;
 
-	    if (c == '\n')
+	    if (c == '\n' || c == '\r')
 		break;
+	}
+	// Support \r\n and \n\r
+	if (read(fd, &c, 1) == 1)
+	{
+	    if (c != '\n' && c != '\r')
+		lseek(fd, -1, SEEK_CUR);
 	}
     }
 
@@ -97,15 +113,17 @@ namespace uPDFParser
      */
     std::string Parser::nextToken(bool exceptionOnEOF)
     {
-	char c;
+	char c = 0, prev_c;
 	std::string res("");
 	int i;
-	static const char delims[] = " \t<>[]()+-/";
+	static const char delims[] = " \t<>[]()/";
+	static const char whitespace_prev_delims[] = "+-"; // Need whitespace before
 	static const char start_delims[] = "<>[]()";
 	bool found = false;
 	
 	while (!found)
 	{
+	    prev_c = c;
 	    if (read(fd, &c, 1) != 1)
 	    {
 		if (exceptionOnEOF)
@@ -146,6 +164,20 @@ namespace uPDFParser
 		    }
 		}
 		
+		// Push character until delimiter is found
+		if (!found && prev_c == ' ')
+		{
+		    for (i=0; i<(int)sizeof(whitespace_prev_delims); i++)
+		    {
+			if (c == whitespace_prev_delims[i])
+			{
+			    lseek(fd, -1, SEEK_CUR);
+			    found = true;
+			    break;
+			}
+		    }
+		}
+		
 		if (!found)
 		    res += c;
 	    }
@@ -182,10 +214,22 @@ namespace uPDFParser
 	return res;
     }
 
-    void Parser::parseTrailer()
+    void Parser::parseStartXref()
     {
 	std::string token;
 	char buffer[10];
+
+	// std::cout << "Parse startxref" << std::endl;
+
+	token = nextToken();
+	readline(fd, buffer, sizeof(buffer), false);
+	if (strncmp(buffer, "%%EOF", 5))
+	    EXCEPTION(INVALID_TRAILER, "Invalid trailer at offset " << curOffset);
+    }
+    
+    void Parser::parseTrailer()
+    {
+	std::string token;
 
 	// std::cout << "Parse trailer" << std::endl;
 
@@ -200,10 +244,7 @@ namespace uPDFParser
 	if (token != "startxref")
 	    EXCEPTION(INVALID_TRAILER, "Invalid trailer at offset " << curOffset);
 
-	token = nextToken();
-	readline(fd, buffer, sizeof(buffer), false);
-	if (strncmp(buffer, "%%EOF", 5))
-	    EXCEPTION(INVALID_TRAILER, "Invalid trailer at offset " << curOffset);
+	parseStartXref();
     }
     
     void Parser::parseXref()
@@ -329,6 +370,8 @@ namespace uPDFParser
 	    return new Boolean(true);
 	else if (token == "false")
 	    return new Boolean(false);
+	else if (token == "null")
+	    return new Null();
 	else
 	    EXCEPTION(INVALID_TOKEN, "Invalid token " << token << " at offset " << curOffset);
 
@@ -536,7 +579,8 @@ namespace uPDFParser
     {
 	char buf[16];
 	std::string token;
-
+	bool secondLine = true;
+	
 	if (fd)
 	    close(fd);
 
@@ -546,7 +590,7 @@ namespace uPDFParser
 	    EXCEPTION(UNABLE_TO_OPEN_FILE, "Unable to open " << filename << " (%m)");
 
 	// Check %PDF at startup
-	readline(fd, buf, 4);
+	readline(fd, buf, 4, false);
 	if (strncmp(buf, "%PDF", 4))
 	    EXCEPTION(INVALID_HEADER, "Invalid PDF header");
 	finishLine(fd);
@@ -572,8 +616,21 @@ namespace uPDFParser
 		parseXref();
 	    else if (token[0] >= '1' && token[0] <= '9')
 		parseObject(token);
+	    // Can have startxref without trailer (not end of document)
+	    else if (token == "startxref")
+		parseStartXref();
 	    else
-		EXCEPTION(INVALID_LINE, "Invalid Line at offset " << curOffset);
+	    {
+		// The second line may be not commented and invalid (for UTF8 stuff)
+		if (!secondLine)
+		{
+		    EXCEPTION(INVALID_LINE, "Invalid Line at offset " << curOffset);
+		}
+		else
+		    finishLine(fd);
+	    }
+	    // If for optimization
+	    if (secondLine) secondLine = false;
 	}
 	
 	close(fd);

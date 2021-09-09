@@ -35,7 +35,7 @@ namespace uPDFParser
     class DataType
     {
     public:
-	enum TYPE {BOOLEAN, INTEGER, REAL, NAME, STRING, HEXASTRING, REFERENCE, ARRAY, DICTIONARY, STREAM};
+	enum TYPE {BOOLEAN, INTEGER, REAL, NAME, STRING, HEXASTRING, REFERENCE, ARRAY, DICTIONARY, STREAM, NULLOBJECT};
 
 	DataType(TYPE _type):
 	    _type(_type)
@@ -247,6 +247,20 @@ namespace uPDFParser
 
     private:
 	int startOffset, endOffset;
+    };
+
+    class Null : public DataType
+    {
+    public:
+	Null():
+	    DataType(DataType::TYPE::NULLOBJECT)
+	{}
+
+	virtual DataType* clone() {return new Null();}
+	bool value() {return 0;}
+	virtual std::string str() { return "null";}
+	
+    private:
     };
 }
 
