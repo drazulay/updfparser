@@ -93,7 +93,7 @@ namespace uPDFParser
 	Array* parseArray(Object* object);
 	String* parseString();
 	HexaString* parseHexaString();
-	Stream* parseStream();
+	Stream* parseStream(Object* object);
 	Name* parseName(std::string& token);
 
 	void writeUpdate(const std::string& filename);

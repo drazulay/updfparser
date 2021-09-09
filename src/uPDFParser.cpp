@@ -316,7 +316,7 @@ namespace uPDFParser
 	else if (token == "<")
 	    value = parseHexaString();
 	else if (token == "stream")
-	    value = parseStream();
+	    value = parseStream(object);
 	else if (token[0] >= '1' && token[0] <= '9')
 	    value = parseNumberOrReference(token);
 	else if (token[0] == '/')
@@ -401,20 +401,51 @@ namespace uPDFParser
 	return new HexaString(res);
     }
 
-    Stream* Parser::parseStream()
+    Stream* Parser::parseStream(Object* object)
     {
-	char buffer[1024];
-	off_t endOffset;
+	off_t startOffset, endOffset;
+	std::string token;
+	
+	// std::cout << "parseStream" << std::endl;
+	
+	startOffset = lseek(fd, 0, SEEK_CUR);
 
-	while (1)
+	if (!object->hasKey("Length"))
+	    EXCEPTION(INVALID_STREAM, "No Length property at offset " << curOffset);
+
+	DataType* Length = (*object)["Length"];
+	if (Length->type() != DataType::INTEGER)
 	{
-	    endOffset = lseek(fd, 0, SEEK_CUR);
-	    readline(fd, buffer, sizeof(buffer));
-	    if (!strncmp(buffer, "endstream", 9))
-		break;
-	}
+	    if (Length->type() != DataType::REFERENCE)
+		EXCEPTION(INVALID_STREAM, "Invalid Length property at offset " << curOffset);
 
-	return new Stream(curOffset, endOffset);
+	    // Don't want to parse xref table...
+	    while (1)
+	    {
+		char buffer[4*1024];
+		int ret;
+		endOffset = lseek(fd, 0, SEEK_CUR);
+		ret = readline(fd, buffer, sizeof(buffer));
+		if (!strncmp(buffer, "endstream", 9))
+		{
+		    lseek(fd, -(ret-9), SEEK_CUR);
+		    break;
+		}
+	    }
+	    return new Stream(startOffset, endOffset);
+	}
+	
+	Integer* length = (Integer*)Length;
+	endOffset = startOffset + length->value();
+	lseek(fd, endOffset, SEEK_SET);
+	token = nextToken();
+
+	if (token != "endstream")
+	    EXCEPTION(INVALID_STREAM, "endstream not found at offset " << endOffset);
+
+	// std::cout << "end parseStream" << std::endl;
+
+	return new Stream(startOffset, endOffset);
     }
     
     Name* Parser::parseName(std::string& name)
