@@ -81,10 +81,10 @@ namespace uPDFParser
     private:
 	void parseObject(std::string& token);
 	void parseStartXref();
-	void parseXref();
-	void parseTrailer();
+	bool parseXref();
+	bool parseTrailer();
 
-	std::string nextToken(bool exceptionOnEOF=true);
+	std::string nextToken(bool exceptionOnEOF=true, bool readComment=false);
 	
 	DataType* parseType(std::string& token, Object* object, std::map<std::string, DataType*>& dict);
 	void parseDictionary(Object* object, std::map<std::string, DataType*>& dict);

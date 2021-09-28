@@ -111,7 +111,7 @@ namespace uPDFParser
     /**
      * @brief Find next token to analyze
      */
-    std::string Parser::nextToken(bool exceptionOnEOF)
+    std::string Parser::nextToken(bool exceptionOnEOF, bool readComment)
     {
 	char c = 0, prev_c;
 	std::string res("");
@@ -134,8 +134,30 @@ namespace uPDFParser
 	    // Comment, skip line
 	    if (c == '%')
 	    {
+		if (readComment)
+		{
+		    curOffset = lseek(fd, 0, SEEK_CUR)-1;
+		    res += c;
+		    while (true)
+		    {
+			if (read(fd, &c, 1) != 1)
+			{
+			    if (exceptionOnEOF)
+				EXCEPTION(TRUNCATED_FILE, "Unexpected end of file");
+			    break;
+			}
+			if (c == '\n' || c == '\r')
+			    break;
+			res += c;
+		    }
+		    break;
+		}
+		
 		finishLine(fd);
-		break;
+		if (res.size())
+		    break;
+		else
+		    continue;
 	    }
 
 	    // White character while empty result, continue
@@ -217,17 +239,22 @@ namespace uPDFParser
     void Parser::parseStartXref()
     {
 	std::string token;
-	char buffer[10];
 
 	// std::cout << "Parse startxref" << std::endl;
 
-	token = nextToken();
-	readline(fd, buffer, sizeof(buffer), false);
-	if (strncmp(buffer, "%%EOF", 5))
+	token = nextToken(); // XREF offset
+	token = nextToken(false, true); // %%EOF
+	if (strncmp(token.c_str(), "%%EOF", 5))
 	    EXCEPTION(INVALID_TRAILER, "Invalid trailer at offset " << curOffset);
+	/* 
+	   Handle special case where we have :
+	   %%EOF1 0 obj\n
+	 */
+	if (token.size() > 5)
+	    lseek(fd, curOffset+5, SEEK_SET);
     }
     
-    void Parser::parseTrailer()
+    bool Parser::parseTrailer()
     {
 	std::string token;
 
@@ -241,16 +268,22 @@ namespace uPDFParser
 	parseDictionary(&trailer, trailer.dictionary().value());
 
 	token = nextToken();
+	/* trailer without xref */
 	if (token != "startxref")
-	    EXCEPTION(INVALID_TRAILER, "Invalid trailer at offset " << curOffset);
+	{
+	    lseek(fd, curOffset, SEEK_SET);
+	    return false;
+	}
 
 	parseStartXref();
+	return true;
     }
     
-    void Parser::parseXref()
+    bool Parser::parseXref()
     {
 	std::string token;
-
+	bool res = false;
+	
 	// std::cout << "Parse xref" << std::endl;
 	xrefOffset = curOffset;
 
@@ -260,10 +293,12 @@ namespace uPDFParser
 
 	    if (token == "trailer")
 	    {
-		parseTrailer();
+		res = parseTrailer();
 		break;
 	    }
 	}
+
+	return res;
     }
 
     static DataType* tokenToNumber(std::string& token, char sign='\0')
@@ -405,16 +440,26 @@ namespace uPDFParser
 	std::string res("");
 	char c;
 	bool escaped = false;
+	int parenthesis_count = 1; /* Handle parenthesis in parenthesis */
 	
 	while (1)
 	{
 	    if (read(fd, &c, 1) != 1)
 		break;
 
-	    if (c == ')' && !escaped)
+	    if (c == '(' && !escaped)
+		parenthesis_count++;
+	    else if (c == ')' && !escaped)
+		parenthesis_count--;
+		
+	    if (c == ')' && !escaped && parenthesis_count == 0)
 		break;
 
-	    escaped = (c == '\\');
+	    /* Handle \\ */
+	    if (c == '\\' && escaped)
+		escaped = false;
+	    else
+		escaped = (c == '\\');
 
 	    res += c;
 	}
@@ -457,37 +502,37 @@ namespace uPDFParser
 	    EXCEPTION(INVALID_STREAM, "No Length property at offset " << curOffset);
 
 	DataType* Length = (*object)["Length"];
-	if (Length->type() != DataType::INTEGER)
+	// Try with a direct jump if no filter applied (Flatedecode)
+	if (!object->hasKey("Filter") && Length->type() == DataType::INTEGER)
 	{
-	    if (Length->type() != DataType::REFERENCE)
-		EXCEPTION(INVALID_STREAM, "Invalid Length property at offset " << curOffset);
+	    Integer* length = (Integer*)Length;
+	    endOffset = startOffset + length->value();
+	    lseek(fd, endOffset, SEEK_SET);
+	    token = nextToken();
 
-	    // Don't want to parse xref table...
-	    while (1)
-	    {
-		char buffer[4*1024];
-		int ret;
-		endOffset = lseek(fd, 0, SEEK_CUR);
-		ret = readline(fd, buffer, sizeof(buffer));
-		if (!strncmp(buffer, "endstream", 9))
-		{
-		    lseek(fd, -(ret-9), SEEK_CUR);
-		    break;
-		}
-	    }
-	    return new Stream(startOffset, endOffset);
+	    if (token == "endstream")
+		return new Stream(startOffset, endOffset);
+
+	    // No endstream, come back at the begining
+	    lseek(fd, startOffset, SEEK_SET);
 	}
 	
-	Integer* length = (Integer*)Length;
-	endOffset = startOffset + length->value();
-	lseek(fd, endOffset, SEEK_SET);
-	token = nextToken();
-
-	if (token != "endstream")
-	    EXCEPTION(INVALID_STREAM, "endstream not found at offset " << endOffset);
-
-	// std::cout << "end parseStream" << std::endl;
-
+	// Don't want to parse xref table...
+	while (1)
+	{
+	    char buffer[4*1024];
+	    char* subs;
+	    int ret;
+	    ret = readline(fd, buffer, sizeof(buffer));
+	    subs = (char*)memmem((void*)buffer, ret, (void*)"endstream", 9);
+	    if (subs)
+	    {
+		unsigned long pos = (unsigned long)subs - (unsigned long)buffer;
+		lseek(fd, -(ret-pos-9), SEEK_CUR);
+		endOffset = lseek(fd, 0, SEEK_CUR);
+		break;
+	    }
+	}
 	return new Stream(startOffset, endOffset);
     }
     
@@ -553,7 +598,7 @@ namespace uPDFParser
 	
 	object = new Object(objectId, generationNumber, offset);
 	_objects.push_back(object);
-
+    
 	while (1)
 	{
 	    token = nextToken();
