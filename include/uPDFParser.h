@@ -35,14 +35,16 @@
 
 namespace uPDFParser
 {
+    class XRefValue;
+    
     /**
      * @brief PDF Parser
      */
     class Parser
     {
     public:
-	Parser():
-	    fd(0)
+	Parser(int version_major=1, int version_minor=6):
+	    version_major(version_major), version_minor(version_minor), fd(0)
 	{}
 
 	~Parser()
@@ -77,9 +79,26 @@ namespace uPDFParser
 	 * @brief Add an object
 	 */
 	void addObject(Object* object) { _objects.push_back(object); }
+
+	/**
+	 * @brief Return trailer object
+	 */
+	Object& getTrailer() {return trailer; }
+
+	/**
+	 * @brief Return xref table. This table is read and updated only once after parse
+	 * Further add/delete will make it incoherent
+	 */
+	const std::vector<XRefValue>& xrefTable() {return _xrefTable;}
+
+	/**
+	 * @brief Return a specific object
+	 */
+	Object* getObject(int objectId, int generationNumber=0);
 	
     private:
 	void parseObject(std::string& token);
+	void parseHeader();
 	void parseStartXref();
 	bool parseXref();
 	bool parseTrailer();
@@ -98,12 +117,38 @@ namespace uPDFParser
 	Name* parseName(std::string& token);
 
 	void writeUpdate(const std::string& filename);
-	
+
+	int version_major, version_minor;
 	std::vector<Object*> _objects;
 	Object trailer;
 	off_t xrefOffset;
 	int fd;
 	off_t curOffset;
+	std::vector<XRefValue> _xrefTable;
+    };
+
+    class XRefValue
+    {
+    public:
+	XRefValue(int objectId, int offset, int generationNumber, bool used, Object* object=0):
+	    _objectId(objectId), _offset(offset), _generationNumber(generationNumber), _used(used),
+	    _object(object)
+	{}
+
+	int objectId() {return _objectId;}
+	int offset() {return _offset;}
+	int generationNumber() {return _generationNumber;}
+	bool used() {return _used;}
+	
+	void setObject(Object* object) { _object = object; }
+	Object* object() { return _object; }
+	
+    private:
+	int _objectId;
+	int _offset;
+	int _generationNumber;
+	bool _used;
+	Object* _object;
     };
 }
 

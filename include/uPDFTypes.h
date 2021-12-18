@@ -259,6 +259,29 @@ namespace uPDFParser
 	std::map<std::string, DataType*>& value() {return _value;}
 	virtual std::string str();
 
+	bool empty() { return _value.empty(); }
+
+	bool hasKey(const std::string& key) { return _value.count(key)?true:false;}
+
+	void deleteKey(const std::string& key) {
+	    if (!hasKey(key)) return;
+	    delete _value[key];
+	    _value.erase(key);
+	}
+
+	void replace(const std::string& key, DataType* data, bool freeData=true)
+	{
+	    if (hasKey(key))
+	    {
+		if (freeData)
+		    deleteKey(key);
+		else
+		    _value.erase(key);
+
+		addData(key, data);
+	    }
+	}
+
     private:
 	std::map<std::string, DataType*> _value;
     };

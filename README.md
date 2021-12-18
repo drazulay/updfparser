@@ -2,7 +2,7 @@ Introduction
 ------------
 
 A very simple PDF parser that will load PDF objects without interpretation (zlib, streams, string encoding...).
-It currently only allows to update PDF file with new objects.
+It's also possible to write a new PDF or update one.
 
 
 Compilation

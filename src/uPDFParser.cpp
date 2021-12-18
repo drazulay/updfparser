@@ -799,10 +799,8 @@ namespace uPDFParser
 	std::string xrefStr = xref.str();
 	::write(newFd, xrefStr.c_str(), xrefStr.size());
 
-	if (trailer.hasKey("Prev"))
-	    delete trailer["Prev"];
-	
-	trailer["Prev"] = new Integer((int)xrefOffset);
+	trailer.deleteKey("Prev");
+	trailer.dictionary().addData("Prev", new Integer((int)xrefOffset));
 
 	std::string trailerStr = trailer.dictionary().str();
 	::write(newFd, "trailer\n", 8);
@@ -821,8 +819,65 @@ namespace uPDFParser
     {
 	if (update)
 	    return writeUpdate(filename);
-	else
-	    EXCEPTION(NOT_IMPLEMENTED, "Full write not implemented");
-    }
 
+	int newFd = open(filename.c_str(), O_WRONLY|O_CREAT|O_TRUNC, S_IRUSR|S_IWUSR);
+
+	if (newFd <= 0)
+	    EXCEPTION(UNABLE_TO_OPEN_FILE, "Unable to open " << filename << " (%m)");
+
+	char header[18];
+	int ret = snprintf(header, sizeof(header), "%%PDF-%d.%d\r%%%c%c%c%c\r\n",
+			   version_major, version_minor,
+			   0xe2, 0xe3, 0xcf, 0xd3);
+	
+	::write(newFd, header, ret);
+
+	int nbObjects = 1;
+	std::stringstream xref;
+
+	xref << std::setfill('0');
+	xref << "xref\n";
+	xref << "0 1 f\r\n";
+	xref << "0000000000 65535 f\r\n";
+	
+	std::vector<Object*>::iterator it;
+	for(it=_objects.begin(); it!=_objects.end(); it++)
+	{
+	    std::string objStr = (*it)->str();
+	    curOffset = lseek(newFd, 0, SEEK_CUR);
+	    ::write(newFd, objStr.c_str(), objStr.size());
+	    xref << std::setw(0) << (*it)->objectId() << " 1\n";
+	    xref << std::setw(10) << curOffset << " " << std::setw(5) << (*it)->generationNumber();
+	    if ((*it)->used())
+		xref << " n";
+	    else
+		xref << " f" ; 
+	    xref << "\r\n" ; // Here \r seems important
+	    nbObjects++;
+	}
+
+
+	off_t newXrefOffset = lseek(newFd, 0, SEEK_CUR);
+
+	std::string xrefStr = xref.str();
+	::write(newFd, xrefStr.c_str(), xrefStr.size());
+
+	trailer.deleteKey("Prev");
+	trailer.deleteKey("Size");
+	trailer.dictionary().addData("Size", new Integer((int)nbObjects));
+
+	trailer.deleteKey("XRefStm");
+	
+	std::string trailerStr = trailer.dictionary().str();
+	::write(newFd, "trailer\n", 8);
+	::write(newFd, trailerStr.c_str(), trailerStr.size());
+
+	std::stringstream startxref;
+	startxref << "startxref\n" << newXrefOffset << "\n%%EOF";
+	
+	std::string startxrefStr = startxref.str();
+	::write(newFd, startxrefStr.c_str(), startxrefStr.size());
+	
+	close(newFd);
+    }
 }

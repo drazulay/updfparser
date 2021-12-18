@@ -16,6 +16,8 @@ int main(int argc, char** argv)
     try
     {
         parser.parse(argv[1]);
+	std::cout << "Write a.pdf" << std::endl;
+        parser.write("a.pdf");
     }
     catch(uPDFParser::Exception e)
     {
