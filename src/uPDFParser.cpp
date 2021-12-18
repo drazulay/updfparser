@@ -33,12 +33,18 @@ namespace uPDFParser
 	std::stringstream res;
 
 	res << _objectId << " " << _generationNumber << " obj\n";
-	res << _dictionary.str();
+	if (isIndirect())
+	    res << "   " << indirectOffset << "\n";
+	else
+	{
+	    if (!_dictionary.empty())
+		res << _dictionary.str();
 
-	std::vector<DataType*>::iterator it;
-	for(it=_data.begin(); it!=_data.end(); it++)
-	    res << (*it)->str();
-
+	    std::vector<DataType*>::iterator it;
+	    for(it=_data.begin(); it!=_data.end(); it++)
+		res << (*it)->str();
+	}
+	
 	res << "endobj\n";
 
 	return res.str();
