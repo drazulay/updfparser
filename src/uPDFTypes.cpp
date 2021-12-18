@@ -43,13 +43,9 @@ namespace uPDFParser
     std::string Integer::str()
     {
 	std::string sign("");
-	if (_signed)
-	{
-	    if (_value >= 0)
-		sign = "+";
-	    else
-		sign = "-";
-	}
+	// Sign automatically added for negative numbers
+	if (_signed && _value >= 0)
+	    sign = "+";
 
 	return " " + sign + std::to_string(_value);
     }
@@ -57,13 +53,8 @@ namespace uPDFParser
     std::string Real::str()
     {
 	std::string sign("");
-	if (_signed)
-	{
-	    if (_value >= 0)
-		sign = "+";
-	    else
-		sign = "-";
-	}
+	if (_signed && _value >= 0)
+	    sign = "+";
 
 	return " " + sign + std::to_string(_value);
     }
