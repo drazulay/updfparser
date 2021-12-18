@@ -266,15 +266,31 @@ namespace uPDFParser
     class Stream : public DataType
     {
     public:
-	Stream(int startOffset, int endOffset):
-	    DataType(DataType::TYPE::STREAM), startOffset(startOffset),
-	    endOffset(endOffset)
+	Stream(Dictionary& dict, int startOffset, int endOffset, unsigned char* data=0, unsigned int dataLength=0,
+	       bool freeData=false, int fd=0):
+	    DataType(DataType::TYPE::STREAM), dict(dict), fd(fd),
+	    startOffset(startOffset), endOffset(endOffset),
+	    _data(data), _dataLength(dataLength), freeData(false)
 	{}
-	virtual DataType* clone() {return new Stream(startOffset, endOffset);}
-	virtual std::string str() { return "stream\nendstream\n";}
+
+	~Stream() {
+	    if (_data && freeData) delete[] _data;
+	}
+	
+	virtual DataType* clone() {return new Stream(dict, startOffset, endOffset,
+						     _data, _dataLength, false, fd);}
+	virtual std::string str();
+	unsigned char* data();
+	unsigned int dataLength() {return _dataLength;}
+	void setData(unsigned char* data, unsigned int dataLength, bool freeData=false);
 
     private:
+	Dictionary& dict;
+	int fd;
 	int startOffset, endOffset;
+	unsigned char* _data;
+	unsigned int _dataLength;
+	bool freeData;
     };
 
     class Null : public DataType

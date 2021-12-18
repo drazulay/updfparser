@@ -17,6 +17,8 @@
   along with uPDFParser. If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <unistd.h>
+
 #include "uPDFTypes.h"
 #include "uPDFParser_common.h"
 
@@ -71,7 +73,7 @@ namespace uPDFParser
 	    res += (*it)->str();
 	}
 	    
-	return res + std::string("]");
+	return res + " ]";
     }
 
     void Dictionary::addData(const std::string& key, DataType* value)
@@ -93,4 +95,45 @@ namespace uPDFParser
 	    
 	return res + std::string(">>\n"); 
    }
+
+    std::string Stream::str()
+    {
+	std::string res = "stream\n";
+	const char* streamData = (const char*)data(); // Force reading if not in memory
+	res += std::string(streamData, _dataLength);
+	res += "endstream\n";
+
+	return res;
+    }
+    
+    unsigned char* Stream::data()
+    {
+	if (!_data)
+	{
+	    if (!fd)
+		EXCEPTION(INVALID_STREAM, "Accessing data, but no file descriptor supplied");
+
+	    _dataLength = endOffset - startOffset;
+	    _data = new unsigned char[_dataLength];
+	    freeData = true;
+
+	    lseek(fd, startOffset, SEEK_SET);
+	    int ret = ::read(fd, _data, _dataLength);
+
+	    if ((unsigned int)ret != _dataLength)
+		EXCEPTION(INVALID_STREAM, "Not enough data to read (" << ret << ")");
+	}
+	
+	return _data;
+    }
+
+    void Stream::setData(unsigned char* data, unsigned int dataLength, bool freeData)
+    {
+	if (_data && freeData)
+	    delete[] _data;
+	
+	this->_data = data;
+	this->_dataLength = dataLength;
+	this->freeData = freeData;
+    }
 }
