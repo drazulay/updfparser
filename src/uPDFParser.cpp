@@ -242,6 +242,35 @@ namespace uPDFParser
 	return res;
     }
 
+    void Parser::parseHeader()
+    {
+	char buf[5];
+
+	// Check %PDF at startup
+	readline(fd, buf, 5, false);
+	if (strncmp(buf, "%PDF-", 5))
+	    EXCEPTION(INVALID_HEADER, "Invalid PDF header");
+
+	// Read major
+	readline(fd, buf, 1, false);
+	if (buf[0] < '0' || buf[0] > '9')
+	    EXCEPTION(INVALID_HEADER, "Invalid PDF major version " << buf[0]);
+	version_major = buf[0] - '0';
+	
+	readline(fd, buf, 1, false);
+	if (buf[0] != '.')
+	    EXCEPTION(INVALID_HEADER, "Invalid PDF header");
+
+	// Read minor
+	readline(fd, buf, 1, false);
+	if (buf[0] < '0' || buf[0] > '9')
+	    EXCEPTION(INVALID_HEADER, "Invalid PDF minor version " << buf[0]);
+	version_minor = buf[0] - '0';
+
+	finishLine(fd);
+	curOffset = lseek(fd, 0, SEEK_CUR);
+    }
+    
     void Parser::parseStartXref()
     {
 	std::string token;
@@ -287,23 +316,40 @@ namespace uPDFParser
     
     bool Parser::parseXref()
     {
-	std::string token;
+	std::string tokens[3];
 	bool res = false;
+	int curId = 0;
 	
 	// std::cout << "Parse xref" << std::endl;
 	xrefOffset = curOffset;
 
 	while (1)
 	{
-	    token = nextToken();
+	    tokens[0] = nextToken();
 
-	    if (token == "trailer")
-	    {
-		res = parseTrailer();
+	    if (tokens[0] == "trailer")
 		break;
+
+	    tokens[1] = nextToken();
+
+	    // Reference ie: 0000000016 00000 n
+	    if (tokens[0].length() == 10)
+	    {
+		tokens[2] = nextToken();
+		XRefValue xref(curId, std::stoi(tokens[0],0,10), std::stoi(tokens[1],0,10),
+			       (tokens[2] == "n") ? true : false);
+		_xrefTable.push_back(xref);
+		curId++;
+
+	    }
+	    // Object index ie: 0 6121
+	    else
+	    {
+		curId = std::stoi(tokens[0]);
 	    }
 	}
 
+	res = parseTrailer();
 	return res;
     }
 
@@ -517,7 +563,8 @@ namespace uPDFParser
 	    token = nextToken();
 
 	    if (token == "endstream")
-		return new Stream(startOffset, endOffset);
+		return new Stream(object->dictionary(), startOffset, endOffset,
+				  0, 0, false, fd);
 
 	    // No endstream, come back at the begining
 	    lseek(fd, startOffset, SEEK_SET);
@@ -535,11 +582,13 @@ namespace uPDFParser
 	    {
 		unsigned long pos = (unsigned long)subs - (unsigned long)buffer;
 		lseek(fd, -(ret-pos-9), SEEK_CUR);
-		endOffset = lseek(fd, 0, SEEK_CUR);
+		endOffset = lseek(fd, 0, SEEK_CUR)-10;
 		break;
 	    }
 	}
-	return new Stream(startOffset, endOffset);
+	
+	return new Stream(object->dictionary(), startOffset, endOffset,
+			  0, 0, false, fd);
     }
     
     Name* Parser::parseName(std::string& name)
@@ -604,7 +653,8 @@ namespace uPDFParser
 	
 	object = new Object(objectId, generationNumber, offset);
 	_objects.push_back(object);
-    
+	std::vector<DataType*>& datas = object->data();
+	
 	while (1)
 	{
 	    token = nextToken();
@@ -622,13 +672,15 @@ namespace uPDFParser
 		object->setIndirectOffset(((Integer*)_offset)->value());
 	    }
 	    else
-		parseType(token, object, object->dictionary().value());
+	    {
+		DataType* res = parseType(token, object, object->dictionary().value());
+		datas.push_back(res);
+	    }
 	}
     }
 
     void Parser::parse(const std::string& filename)
     {
-	char buf[16];
 	std::string token;
 	bool secondLine = true;
 	
@@ -640,14 +692,8 @@ namespace uPDFParser
 	if (fd <= 0)
 	    EXCEPTION(UNABLE_TO_OPEN_FILE, "Unable to open " << filename << " (%m)");
 
-	// Check %PDF at startup
-	readline(fd, buf, 4, false);
-	if (strncmp(buf, "%PDF", 4))
-	    EXCEPTION(INVALID_HEADER, "Invalid PDF header");
-	finishLine(fd);
-
-	curOffset = lseek(fd, 0, SEEK_CUR);
-
+	parseHeader();
+	
 	// // Check %%EOF at then end
 	// lseek(fd, -5, SEEK_END);
 	// readline(fd, buf, 5);
@@ -683,10 +729,37 @@ namespace uPDFParser
 	    // If for optimization
 	    if (secondLine) secondLine = false;
 	}
-	
-	close(fd);
+
+	// Synchronize xref table with parsed objects
+	std::vector<XRefValue>::iterator it;
+	for (it=_xrefTable.begin(); it != _xrefTable.end(); it++)
+	{
+	    Object* object = getObject((*it).objectId(), (*it).generationNumber());
+	    if (object)
+	    {
+		(*it).setObject(object);
+		object->setUsed((*it).used());
+	    }
+	}
+
+	// close(fd);
     }
 
+    Object* Parser::getObject(int objectId, int generationNumber)
+    {
+	std::vector<Object*>::iterator it;
+
+	Object object(objectId, generationNumber, 0);
+	
+	for (it = _objects.begin(); it != _objects.end(); it++)
+	{
+	    if (**it == object)
+		return *it;
+	}
+
+	return 0;
+    }
+    
     void Parser::writeUpdate(const std::string& filename)
     {
 	int newFd = open(filename.c_str(), O_WRONLY|O_APPEND|O_CREAT, S_IRUSR|S_IWUSR);
