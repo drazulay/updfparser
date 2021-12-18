@@ -26,6 +26,22 @@
 #include <iostream>
 #include <sstream>
 
+static std::string strReplace(const std::string& orig, const std::string& pattern, const std::string subst)
+{
+    std::string res = orig;
+    std::size_t pos;
+    
+    do
+    {
+	pos = res.find(pattern);
+
+	if (pos != std::string::npos)
+	    res.replace(pos, pattern.size(), subst);
+    } while (pos != std::string::npos);
+
+    return res;
+}
+
 namespace uPDFParser
 {
     /**
@@ -148,6 +164,18 @@ namespace uPDFParser
 	    }
 
 	    res += ")";
+	    return res;
+	}
+
+	// Remove escape character '\'
+	virtual std::string unescapedValue() {
+	    // Unescape '\n', \r', '\', '(' and ')'
+	    std::string res = strReplace(_value, "\\\\", "\\");
+	    res = strReplace(res, "\\(", "(");
+	    res = strReplace(res, "\\)", ")");
+	    res = strReplace(res, "\\n", "\n");
+	    res = strReplace(res, "\\r", "\r");
+
 	    return res;
 	}
 
