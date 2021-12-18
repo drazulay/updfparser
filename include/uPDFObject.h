@@ -32,7 +32,8 @@ namespace uPDFParser
     public:
 	Object():
 	    _objectId(0), _generationNumber(0),
-	    offset(0), _isNew(false), indirectOffset(0)
+	    _offset(0), _isNew(false), indirectOffset(0),
+	    _used(true)
 	{}
 
 	/**
@@ -46,9 +47,10 @@ namespace uPDFParser
 	 * @param indirectOffset    Object is indirect
 	 */
 	Object(int objectId, int generationNumber, uint64_t offset, bool isNew=false,
-	       off_t indirectOffset=0):
+	       off_t indirectOffset=0, bool used=true):
 	    _objectId(objectId), _generationNumber(generationNumber),
-	    offset(offset), _isNew(isNew), indirectOffset(indirectOffset)
+	    _offset(offset), _isNew(isNew), indirectOffset(indirectOffset),
+	    _used(true)
 	{}
 
 	~Object()
@@ -62,9 +64,10 @@ namespace uPDFParser
 	{
 	    _objectId = other._objectId;
 	    _generationNumber = other._generationNumber;
-	    offset = other.offset;
+	    _offset = other._offset;
 	    indirectOffset = other.indirectOffset;
 	    _isNew = true;
+	    _used = other._used;
 
 	    std::vector<DataType*>::const_iterator it;
 	    for(it=other._data.begin(); it!=other._data.end(); it++)
@@ -98,6 +101,11 @@ namespace uPDFParser
 	std::string str();
 
 	/**
+	 * @brief Object offset
+	 */
+	off_t offset() {return _offset;}
+	
+	/**
 	 * @brief Set object as indirect if offset != 0 or not indirect if offset == 0
 	 */
 	void setIndirectOffset(off_t offset) {indirectOffset = offset;}
@@ -115,7 +123,14 @@ namespace uPDFParser
 	/**
 	 * @brief Check for key in object's dictionary
 	 */
-	bool hasKey(const std::string& key) { return _dictionary.value().count(key)?true:false; }
+	bool hasKey(const std::string& key) { return _dictionary.hasKey(key); }
+
+	/**
+	 * @brief Remove a key in object's dictionary
+	 * No error if the key doesn't exists
+	 * Value is freed during this operation
+	 */
+	void deleteKey(const std::string& key) { _dictionary.deleteKey(key); }
 
 	/**
 	 * @brief is object new (or not updated) ?
@@ -136,13 +151,30 @@ namespace uPDFParser
 	 * @brief Return object's generation number
 	 */
 	int generationNumber() { return _generationNumber; }
+
+	/**
+	 * @brief Return object status used ('n') or free ('f')
+	 */
+	bool used() {return _used;}
+
+	/**
+	 * @brief Update used flag
+	 */
+	void setUsed(bool used) {_used = used;}
+
+	bool operator == (const Object& other)
+	{
+	    return _objectId == other._objectId &&
+		_generationNumber == other._generationNumber;
+	}
 	
     private:
 	int _objectId;
 	int _generationNumber;
-	off_t offset;
+	off_t _offset;
 	bool _isNew;
 	off_t indirectOffset;
+	bool _used;
 	Dictionary _dictionary;
 	std::vector<DataType*> _data;
     };
