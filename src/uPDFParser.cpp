@@ -543,7 +543,7 @@ namespace uPDFParser
 
     Stream* Parser::parseStream(Object* object)
     {
-	off_t startOffset, endOffset;
+	off_t startOffset, endOffset, endStream;
 	std::string token;
 	
 	// std::cout << "parseStream" << std::endl;
@@ -574,15 +574,28 @@ namespace uPDFParser
 	while (1)
 	{
 	    char buffer[4*1024];
-	    char* subs;
+	    char* subs, c;
 	    int ret;
-	    ret = readline(fd, buffer, sizeof(buffer));
+	    ret = read(fd, buffer, sizeof(buffer));
 	    subs = (char*)memmem((void*)buffer, ret, (void*)"endstream", 9);
 	    if (subs)
 	    {
 		unsigned long pos = (unsigned long)subs - (unsigned long)buffer;
-		lseek(fd, -(ret-pos-9), SEEK_CUR);
-		endOffset = lseek(fd, 0, SEEK_CUR)-10;
+		// Here we're juste before "enstream"
+		endOffset = lseek(fd, -(ret-pos), SEEK_CUR);
+		// Final position must be after endstream\n
+		endStream = endOffset + 10;
+		// Remove trailing \r and \n before endstream
+		for (;endOffset > startOffset; endOffset--)
+		{
+		    lseek(fd, -1, SEEK_CUR);
+		    read(fd, &c, 1);
+		    if (c != '\n' && c != '\r')
+			break;
+		    lseek(fd, -1, SEEK_CUR);
+		}
+		// Adjust final position
+		lseek(fd, endStream, SEEK_SET);
 		break;
 	    }
 	}
