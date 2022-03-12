@@ -862,9 +862,10 @@ namespace uPDFParser
 	
 	::write(newFd, header, ret);
 
-	int nbObjects = 1;
+	int maxId = 0;
 	std::stringstream xref;
-
+	off_t xrefStmOffset = 0;
+	
 	xref << std::setfill('0');
 	xref << "xref\n";
 	xref << "0 1\n";
@@ -873,17 +874,31 @@ namespace uPDFParser
 	std::vector<Object*>::iterator it;
 	for(it=_objects.begin(); it!=_objects.end(); it++)
 	{
-	    std::string objStr = (*it)->str();
+	    Object* object = *it;
+	    std::string objStr = object->str();
 	    curOffset = lseek(newFd, 0, SEEK_CUR);
 	    ::write(newFd, objStr.c_str(), objStr.size());
-	    xref << std::setw(0) << (*it)->objectId() << " 1\n";
-	    xref << std::setw(10) << curOffset << " " << std::setw(5) << (*it)->generationNumber();
-	    if ((*it)->used())
+	    xref << std::setw(0) << object->objectId() << " 1\n";
+	    xref << std::setw(10) << curOffset << " " << std::setw(5) << object->generationNumber();
+	    if (object->used())
 		xref << " n";
 	    else
 		xref << " f" ; 
 	    xref << "\r\n" ; // Here \r seems important
-	    nbObjects++;
+
+	    if (object->objectId() > maxId)
+		maxId = object->objectId();
+
+	    if (object->hasKey("Type") && (*object)["Type"]->str() == "/XRef")
+	    {
+		// Try to keep Prev link valid
+		if (object->hasKey("Prev") && xrefStmOffset != 0)
+		{
+		    object->deleteKey("Prev");
+		    object->dictionary().addData("Prev", new Integer(xrefStmOffset));
+		}
+		xrefStmOffset = curOffset;
+	    }
 	}
 
 
@@ -894,10 +909,12 @@ namespace uPDFParser
 
 	trailer.deleteKey("Prev");
 	trailer.deleteKey("Size");
-	trailer.dictionary().addData("Size", new Integer((int)nbObjects));
+	trailer.dictionary().addData("Size", new Integer(maxId+1));
 
 	trailer.deleteKey("XRefStm");
-	
+	if (xrefStmOffset != 0)
+	    trailer.dictionary().addData("XRefStm", new Integer(xrefStmOffset));
+	    
 	std::string trailerStr = trailer.dictionary().str();
 	::write(newFd, "trailer\n", 8);
 	::write(newFd, trailerStr.c_str(), trailerStr.size());
