@@ -572,8 +572,7 @@ namespace uPDFParser
 	    EXCEPTION(INVALID_STREAM, "No Length property at offset " << curOffset);
 
 	DataType* Length = (*object)["Length"];
-	// Try with a direct jump if no filter applied (Flatedecode)
-	if (!object->hasKey("Filter") && Length->type() == DataType::INTEGER)
+	if (Length->type() == DataType::INTEGER)
 	{
 	    Integer* length = (Integer*)Length;
 	    endOffset = startOffset + length->value();
