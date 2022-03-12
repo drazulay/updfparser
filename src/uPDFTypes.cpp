@@ -18,6 +18,7 @@
 */
 
 #include <unistd.h>
+#include <algorithm>
 
 #include "uPDFTypes.h"
 #include "uPDFParser_common.h"
@@ -54,11 +55,15 @@ namespace uPDFParser
     
     std::string Real::str()
     {
+	std::string res;
 	std::string sign("");
 	if (_signed && _value >= 0)
 	    sign = "+";
 
-	return " " + sign + std::to_string(_value);
+	res = " " + sign + std::to_string(_value);
+	std::replace( res.begin(), res.end(), ',', '.');
+
+	return res;
     }
 
     std::string Array::str()
@@ -85,7 +90,7 @@ namespace uPDFParser
     {
 	std::string res("<<");
 	std::map<std::string, DataType*>::iterator it;
-
+	
 	for(it = _value.begin(); it!=_value.end(); it++)
 	{
 	    res += std::string("/") + it->first;
