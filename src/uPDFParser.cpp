@@ -37,14 +37,32 @@ namespace uPDFParser
 	    res << "   " << indirectOffset << "\n";
 	else
 	{
+	    bool needLineReturn = false;
+	    
 	    if (!_dictionary.empty())
 		res << _dictionary.str();
+	    else
+	    {
+		if (!_data.size())
+		    res << "<<>>\n";
+		else
+		    needLineReturn = true;
+	    }
 
 	    std::vector<DataType*>::iterator it;
 	    for(it=_data.begin(); it!=_data.end(); it++)
-		res << (*it)->str();
+	    {
+		std::string tmp = (*it)->str();
+		res << tmp;
+		if (tmp[tmp.size()-1] == '\n' ||
+		    tmp[tmp.size()-1] == '\r')
+		    needLineReturn = false;
+	    }
+
+	    if (needLineReturn)
+		res << "\n";
 	}
-	
+
 	res << "endobj\n";
 
 	return res.str();
