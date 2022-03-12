@@ -867,7 +867,7 @@ namespace uPDFParser
 
 	xref << std::setfill('0');
 	xref << "xref\n";
-	xref << "0 1 f\r\n";
+	xref << "0 1\n";
 	xref << "0000000000 65535 f\r\n";
 	
 	std::vector<Object*>::iterator it;
