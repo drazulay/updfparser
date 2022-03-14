@@ -78,7 +78,7 @@ namespace uPDFParser
 	    res += (*it)->str();
 	}
 	    
-	return res + " ]";
+	return res + "]";
     }
 
     void Dictionary::addData(const std::string& key, DataType* value)

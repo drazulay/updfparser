@@ -792,11 +792,31 @@ namespace uPDFParser
     
     void Parser::writeUpdate(const std::string& filename)
     {
+	struct stat _stat;
+
+	int statRet = stat(filename.c_str(), &_stat);
+
 	int newFd = open(filename.c_str(), O_WRONLY|O_APPEND|O_CREAT, S_IRUSR|S_IWUSR);
 
 	if (newFd <= 0)
 	    EXCEPTION(UNABLE_TO_OPEN_FILE, "Unable to open " << filename << " (%m)");
 
+	// Copy file if it doesn't exists
+	if (statRet == -1 && errno == ENOENT)
+	{
+	    char buffer[4096];
+	    int ret;
+	    lseek(fd, 0, SEEK_SET);
+
+	    while (true)
+	    {
+		ret = ::read(fd, buffer, sizeof(buffer));
+		if (ret <= 0)
+		    break;
+		::write(newFd, buffer, ret);
+	    }
+	}
+	
 	::write(newFd, "\r", 1);
 
 	std::stringstream xref;
