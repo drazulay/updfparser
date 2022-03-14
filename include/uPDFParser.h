@@ -44,7 +44,8 @@ namespace uPDFParser
     {
     public:
 	Parser(int version_major=1, int version_minor=6):
-	    version_major(version_major), version_minor(version_minor), fd(0)
+	    version_major(version_major), version_minor(version_minor),
+	    xrefObject(0), xrefOffset((off_t)-1), fd(0), curOffset(0)
 	{}
 
 	~Parser()
@@ -116,11 +117,12 @@ namespace uPDFParser
 	Stream* parseStream(Object* object);
 	Name* parseName(std::string& token);
 
+	void repairTrailer();
 	void writeUpdate(const std::string& filename);
 
 	int version_major, version_minor;
 	std::vector<Object*> _objects;
-	Object trailer;
+	Object trailer, *xrefObject;
 	off_t xrefOffset;
 	int fd;
 	off_t curOffset;

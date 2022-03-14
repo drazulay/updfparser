@@ -68,6 +68,31 @@ namespace uPDFParser
 	return res.str();
     }
 
+    static DataType* tokenToNumber(std::string& token, char sign='\0')
+    {
+	int i;
+	float fvalue;
+	int ivalue;
+	
+	for(i=0; i<(int)token.size(); i++)
+	{
+	    if (token[i] == '.')
+	    {
+		if (i==0) token = std::string("0") + token;
+		fvalue = std::stof(token);
+		if (sign == '-')
+		    fvalue = -fvalue;
+		return new Real(fvalue, (sign!='\0'));
+	    }
+	}
+
+	ivalue = std::stoi(token);
+	if (sign == '-')
+	    ivalue = -ivalue;
+	
+	return new Integer(ivalue, (sign!='\0'));
+    }
+
     /**
      * @brief Read data until '\n' or '\r' is found or buffer is full
      */
@@ -291,11 +316,11 @@ namespace uPDFParser
     
     void Parser::parseStartXref()
     {
-	std::string token;
+	std::string offset, token;
 
 	// std::cout << "Parse startxref" << std::endl;
 
-	token = nextToken(); // XREF offset
+	offset = nextToken(); // XREF offset
 	token = nextToken(false, true); // %%EOF
 	if (strncmp(token.c_str(), "%%EOF", 5))
 	    EXCEPTION(INVALID_TRAILER, "Invalid trailer at offset " << curOffset);
@@ -305,6 +330,17 @@ namespace uPDFParser
 	 */
 	if (token.size() > 5)
 	    lseek(fd, curOffset+5, SEEK_SET);
+
+	/* Case where no xref table present */
+	if (xrefOffset == (off_t)-1)
+	{
+	    DataType* integer = tokenToNumber(offset);
+	    if (integer->type() != DataType::TYPE::INTEGER)
+		EXCEPTION(INVALID_TRAILER, "Invalid startxref offset");
+
+	    xrefOffset = ((Integer*)integer)->value();
+	}
+		
     }
     
     bool Parser::parseTrailer()
@@ -369,31 +405,6 @@ namespace uPDFParser
 
 	res = parseTrailer();
 	return res;
-    }
-
-    static DataType* tokenToNumber(std::string& token, char sign='\0')
-    {
-	int i;
-	float fvalue;
-	int ivalue;
-	
-	for(i=0; i<(int)token.size(); i++)
-	{
-	    if (token[i] == '.')
-	    {
-		if (i==0) token = std::string("0") + token;
-		fvalue = std::stof(token);
-		if (sign == '-')
-		    fvalue = -fvalue;
-		return new Real(fvalue, (sign!='\0'));
-	    }
-	}
-
-	ivalue = std::stoi(token);
-	if (sign == '-')
-	    ivalue = -ivalue;
-	
-	return new Integer(ivalue, (sign!='\0'));
     }
     
     DataType* Parser::parseSignedNumber(std::string& token)
@@ -707,6 +718,10 @@ namespace uPDFParser
 		datas.push_back(res);
 	    }
 	}
+
+	// Keep a reference to last xrefObject
+	if (object->hasKey("Type") && (*object)["Type"]->str() == "/XRef")
+	    xrefObject = object;
     }
 
     void Parser::parse(const std::string& filename)
@@ -789,6 +804,22 @@ namespace uPDFParser
 
 	return 0;
     }
+
+    void Parser::repairTrailer()
+    {
+	// Try to fill manadatory values not present in original trailer
+	// with xrefObject if there is one
+	if (!xrefObject)
+	    return;
+
+	static const char* keys[] = {"Root", "Info", "Encrypt", "ID"};
+
+	for (int i=0; i<sizeof(keys)/sizeof(keys[0]); i++)
+	{
+	    if (!trailer.hasKey(keys[i]) && xrefObject->hasKey(keys[i]))
+		trailer.dictionary().addData(keys[i], (*xrefObject)[keys[i]]->clone());
+	}
+    }
     
     void Parser::writeUpdate(const std::string& filename)
     {
@@ -850,8 +881,11 @@ namespace uPDFParser
 	::write(newFd, xrefStr.c_str(), xrefStr.size());
 
 	trailer.deleteKey("Prev");
-	trailer.dictionary().addData("Prev", new Integer((int)xrefOffset));
+	if (xrefOffset != (off_t)-1)
+	    trailer.dictionary().addData("Prev", new Integer((int)xrefOffset));
 
+	repairTrailer();
+	
 	std::string trailerStr = trailer.dictionary().str();
 	::write(newFd, "trailer\n", 8);
 	::write(newFd, trailerStr.c_str(), trailerStr.size());
@@ -921,7 +955,6 @@ namespace uPDFParser
 	    }
 	}
 
-
 	off_t newXrefOffset = lseek(newFd, 0, SEEK_CUR);
 
 	std::string xrefStr = xref.str();
@@ -934,7 +967,9 @@ namespace uPDFParser
 	trailer.deleteKey("XRefStm");
 	if (xrefStmOffset != 0)
 	    trailer.dictionary().addData("XRefStm", new Integer(xrefStmOffset));
-	    
+
+	repairTrailer();
+	
 	std::string trailerStr = trailer.dictionary().str();
 	::write(newFd, "trailer\n", 8);
 	::write(newFd, trailerStr.c_str(), trailerStr.size());
