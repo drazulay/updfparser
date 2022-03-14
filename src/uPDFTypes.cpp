@@ -106,6 +106,10 @@ namespace uPDFParser
 	std::string res = "stream\n";
 	const char* streamData = (const char*)data(); // Force reading if not in memory
 	res += std::string(streamData, _dataLength);
+	// Be sure there is a final line return
+	if (streamData[_dataLength-1] != '\n' &&
+	    streamData[_dataLength-1] != '\r')
+	    res += "\n";
 	res += "endstream\n";
 
 	return res;
