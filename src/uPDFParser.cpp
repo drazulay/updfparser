@@ -787,6 +787,8 @@ namespace uPDFParser
 	    }
 	}
 
+	repairTrailer();
+	
 	// close(fd);
     }
 
@@ -814,7 +816,7 @@ namespace uPDFParser
 
 	static const char* keys[] = {"Root", "Info", "Encrypt", "ID"};
 
-	for (int i=0; i<sizeof(keys)/sizeof(keys[0]); i++)
+	for (int i=0; i<(int)(sizeof(keys)/sizeof(keys[0])); i++)
 	{
 	    if (!trailer.hasKey(keys[i]) && xrefObject->hasKey(keys[i]))
 		trailer.dictionary().addData(keys[i], (*xrefObject)[keys[i]]->clone());
@@ -884,8 +886,6 @@ namespace uPDFParser
 	if (xrefOffset != (off_t)-1)
 	    trailer.dictionary().addData("Prev", new Integer((int)xrefOffset));
 
-	repairTrailer();
-	
 	std::string trailerStr = trailer.dictionary().str();
 	::write(newFd, "trailer\n", 8);
 	::write(newFd, trailerStr.c_str(), trailerStr.size());
@@ -968,8 +968,6 @@ namespace uPDFParser
 	if (xrefStmOffset != 0)
 	    trailer.dictionary().addData("XRefStm", new Integer(xrefStmOffset));
 
-	repairTrailer();
-	
 	std::string trailerStr = trailer.dictionary().str();
 	::write(newFd, "trailer\n", 8);
 	::write(newFd, trailerStr.c_str(), trailerStr.size());
