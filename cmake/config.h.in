@@ -1,0 +1,9 @@
+#ifndef updfparser_CONFIG_H
+#define updfparser_CONFIG_H
+
+#define updfparser_VERSION_MAJOR @updfparser_VERSION_MAJOR@
+#define updfparser_VERSION_MINOR @updfparser_VERSION_MINOR@
+#define updfparser_VERSION_PATCH @updfparser_VERSION_PATCH@
+#define updfparser_VERSION       "@updfparser_VERSION@"
+
+#endif /* !updfparser_CONFIG_H */

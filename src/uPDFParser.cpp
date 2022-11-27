@@ -21,7 +21,8 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <string.h>
+#include <string>
+#include <cstring>
 
 #include "uPDFParser.h"
 #include "uPDFParser_common.h"

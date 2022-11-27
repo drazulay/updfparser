@@ -1,5 +1,5 @@
 *~
 libupdfparser.a
 libupdfparser.so
-
-
+*build*
+.idea
