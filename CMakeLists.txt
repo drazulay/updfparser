@@ -63,10 +63,15 @@ set(CPACK_PACKAGE_VERSION_MAJOR "${PROJECT_VERSION_MAJOR}")
 set(CPACK_PACKAGE_VERSION_MINOR "${PROJECT_VERSION_MINOR}")
 set(CPACK_RESOURCE_FILE_README "${CMAKE_SOURCE_DIR}/cmake/README.txt")
 set(CPACK_RESOURCE_FILE_WELCOME "${CMAKE_SOURCE_DIR}/cmake/Welcome.txt")
-set(CPACK_PACKAGE_CONTACT "https://github.com/BentonEdmondson/${PROJECT_NAME}")
+set(CPACK_PACKAGE_CONTACT "https://indefero.soutade.fr/p/${PROJECT_NAME}")
 
 include(CPack)
 include(CMakePackageConfigHelpers)
+
+include(CTest)
+if (BUILD_TESTING)
+    add_subdirectory("tests")
+endif (BUILD_TESTING)
 
 cpack_add_component(
         "${PROJECT_NAME}"
