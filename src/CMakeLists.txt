@@ -1,5 +1,4 @@
-get_filename_component(DIRNAME "${CMAKE_CURRENT_SOURCE_DIR}" NAME)
-set(LIBRARY_NAME "${PROJECT_NAME}_${DIRNAME}")
+set(LIBRARY_NAME "${PROJECT_NAME}")
 
 set(Source_Files
         "uPDFParser.cpp"
@@ -8,7 +7,6 @@ set(Source_Files
 source_group("Source Files" FILES "${Source_Files}")
 
 add_library("${LIBRARY_NAME}" "${Source_Files}")
-
 
 target_link_libraries(
         "${LIBRARY_NAME}"
@@ -34,9 +32,13 @@ set_property(TARGET "${LIBRARY_NAME}" PROPERTY SOVERSION "${${PROJECT_NAME}_VERS
 install(FILES ${Header_Files}
         DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
 
-install(TARGETS "${LIBRARY_NAME}" "${PROJECT_NAME}_compiler_flags" "${PROJECT_NAME}_include"
+install(TARGETS
+            "${LIBRARY_NAME}"
+            "${PROJECT_NAME}_include"
+            "${PROJECT_NAME}_compiler_flags"
         EXPORT "${LIBRARY_NAME}Targets"
         ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
         LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
         RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
-install(EXPORT "${LIBRARY_NAME}Targets" DESTINATION "${CMAKE_INSTALL_DATADIR}/${LIBRARY_NAME}")
+install(EXPORT "${LIBRARY_NAME}Targets"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/${LIBRARY_NAME}")
